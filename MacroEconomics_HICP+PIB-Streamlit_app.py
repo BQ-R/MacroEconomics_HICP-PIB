@@ -30,7 +30,7 @@ kpis_seleccionados = st.multiselect(
     ["HICP – Harmonized Inflation", "GDP – Gross Domestic Product"]
 )
 
-# --- Carga si hay dirección y KPIs ---
+# --- Ejecutar si hay dirección y KPIs seleccionados ---
 if st.button("Generate Summary") and direccion and kpis_seleccionados:
     codigo_pais = obtener_codigo_pais(direccion)
     if not codigo_pais:
@@ -61,19 +61,14 @@ if st.button("Generate Summary") and direccion and kpis_seleccionados:
             return df
 
         texto_kpis = ""
+        texto_graficos = ""
+        resumen_es = ""
+        resumen_en = ""
         prompts = []
 
         try:
             if "HICP – Harmonized Inflation" in kpis_seleccionados:
                 df_hicp = obtener_df("prc_hicp_midx", {"coicop": "CP00", "unit": "I15"})
-                st.subheader("📈 HICP – Harmonized Inflation Index")
-                fig1, ax1 = plt.subplots(figsize=(10, 3))
-                ax1.plot(df_hicp["Periodo"], df_hicp["Valor"], color="#DAA520", linewidth=2)
-                ax1.set_facecolor("#F5F5F5")
-                ax1.tick_params(axis="x", rotation=45)
-                ax1.set_ylabel("HICP Index")
-                ax1.grid(True, linestyle="--", alpha=0.4)
-                st.pyplot(fig1)
                 texto_kpis += f"\n\n📌 HICP – Harmonized Inflation Index:\n{df_hicp.to_string(index=False)}"
 
             if "GDP – Gross Domestic Product" in kpis_seleccionados:
@@ -82,14 +77,6 @@ if st.button("Generate Summary") and direccion and kpis_seleccionados:
                     "unit": "CLV10_MNAC",
                     "s_adj": "NSA"
                 })
-                st.subheader("📉 GDP – Quarterly Volume (chain-linked)")
-                fig2, ax2 = plt.subplots(figsize=(10, 3))
-                ax2.plot(df_pib["Periodo"], df_pib["Valor"], color="#4682B4", linewidth=2)
-                ax2.set_facecolor("#F5F5F5")
-                ax2.tick_params(axis="x", rotation=45)
-                ax2.set_ylabel("GDP (national unit)")
-                ax2.grid(True, linestyle="--", alpha=0.4)
-                st.pyplot(fig2)
                 texto_kpis += f"\n\n📌 GDP – Quarterly Volume:\n{df_pib.to_string(index=False)}"
 
             prompt_es = f"""
@@ -108,7 +95,6 @@ You are an economist. Write a technical macroeconomic summary of approximately {
 Write one separate paragraph for each indicator (e.g., one for inflation, one for GDP, etc.), analyzing its trend and context. End with a final paragraph that connects them and concludes. The text must be in English.
 """
 
-            # GPT
             respuesta_es = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt_es}],
@@ -120,12 +106,56 @@ Write one separate paragraph for each indicator (e.g., one for inflation, one fo
                 temperature=0.6
             )
 
-            st.subheader("🧠 Resumen en español")
-            st.write(respuesta_es.choices[0].message.content.strip())
+            parrafos_es = respuesta_es.choices[0].message.content.strip().split("\n\n")
+            parrafos_en = respuesta_en.choices[0].message.content.strip().split("\n\n")
 
-            st.subheader("🧠 Summary in English")
-            st.write(respuesta_en.choices[0].message.content.strip())
+            # Mostrar resultados KPI a KPI
+            st.markdown("## 📊 Results by Indicator")
+            idx = 0
+            if "HICP – Harmonized Inflation" in kpis_seleccionados:
+                col1, col2 = st.columns([1.2, 2])
+                with col1:
+                    st.markdown("#### HICP – Harmonized Inflation")
+                    fig1, ax1 = plt.subplots(figsize=(6, 3))
+                    ax1.plot(df_hicp["Periodo"], df_hicp["Valor"], color="#DAA520", linewidth=2)
+                    ax1.set_facecolor("#F5F5F5")
+                    ax1.tick_params(axis="x", rotation=45)
+                    ax1.set_ylabel("HICP Index")
+                    ax1.grid(True, linestyle="--", alpha=0.4)
+                    st.pyplot(fig1)
+                with col2:
+                    st.markdown("#### 🧠 Summary – ES")
+                    st.write(parrafos_es[idx])
+                    st.markdown("#### 🧠 Summary – EN")
+                    st.write(parrafos_en[idx])
+                    idx += 1
+
+            if "GDP – Gross Domestic Product" in kpis_seleccionados:
+                col1, col2 = st.columns([1.2, 2])
+                with col1:
+                    st.markdown("#### GDP – Gross Domestic Product")
+                    fig2, ax2 = plt.subplots(figsize=(6, 3))
+                    ax2.plot(df_pib["Periodo"], df_pib["Valor"], color="#4682B4", linewidth=2)
+                    ax2.set_facecolor("#F5F5F5")
+                    ax2.tick_params(axis="x", rotation=45)
+                    ax2.set_ylabel("GDP (unit)")
+                    ax2.grid(True, linestyle="--", alpha=0.4)
+                    st.pyplot(fig2)
+                with col2:
+                    st.markdown("#### 🧠 Summary – ES")
+                    st.write(parrafos_es[idx])
+                    st.markdown("#### 🧠 Summary – EN")
+                    st.write(parrafos_en[idx])
+                    idx += 1
+
+            st.markdown("## 🧩 Final Conclusion")
+            st.markdown("#### 🧠 Conclusión – ES")
+            st.write(parrafos_es[-1])
+            st.markdown("#### 🧠 Conclusion – EN")
+            st.write(parrafos_en[-1])
 
         except Exception as e:
             st.error(f"❌ Error al procesar: {e}")
+
+
 
